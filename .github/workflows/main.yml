@@ -1,0 +1,36 @@
+name: RDP
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Start Building
+    runs-on: windows-latest
+    timeout-minutes: 9999
+    steps:
+    - name: Downloading & Installing Essentials
+      run: |
+        choco install -y ngrok putty
+        
+    - name: Setting up Tailscale
+      run: |
+        curl -fsSL https://tailscale.com/install.sh | sh
+        tailscale up --authkey=${{ secrets.TS_AUTHKEY }}
+        
+    - name: Enable RDP & Configure
+      run: |
+        # Enable RDP
+        Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # Enable MultiUser Session
+        Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp' -name "UserAuthentication" -Value 1
+        Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Services\\TermService' -Name "Type" -Value 1
+        
+    - name: Get IP Address
+      run: |
+        echo "Your RDP IP: " + (Get-NetIPAddress -InterfaceAlias "Tailscale" | Select-Object -ExpandProperty IPAddress)
+        
+    - name: Keep Server Alive
+      run: |
+        while ($true) { Start-Sleep -Seconds 3600 }
