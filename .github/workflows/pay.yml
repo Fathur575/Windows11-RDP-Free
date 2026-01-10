@@ -1,0 +1,69 @@
+name: RDP
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Start Building
+    runs-on: windows-latest
+    timeout-minutes: 9999
+    steps:
+    - name: Downloading & Installing Essentials
+      run: |
+        choco install -y ngrok
+        
+    - name: Enable RDP Access
+      run: |
+        # Enable RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0 -Force
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+        
+    - name: Set RDP Credentials
+      run: |
+        # Create user account for RDP access
+        $password = ConvertTo-SecureString -AsPlainText "Rdp@2025!Secure" -Force
+        try {
+          New-LocalUser -Name "RdpUser" -Password $password -FullName "RDP Access User" -Description "User for RDP access" -ErrorAction SilentlyContinue
+        } catch {}
+        
+        # Add user to Remote Desktop Users group
+        try {
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RdpUser" -ErrorAction SilentlyContinue
+        } catch {}
+        
+        # Set administrator password for runner
+        $adminPassword = ConvertTo-SecureString -AsPlainText "Admin@2025!Secure" -Force
+        Set-LocalUser -Name "runneradmin" -Password $adminPassword -ErrorAction SilentlyContinue
+        
+    - name: Enable MultiUser Session
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1 -Force
+        
+    - name: Setup Tailscale with Auth Key
+      env:
+        TS_AUTH_KEY: ${{ secrets.TS_AUTHKEY }}
+      run: |
+        choco install -y tailscale
+        & 'C:\Program Files\Tailscale\tailscale.exe' up --authkey=$env:TS_AUTH_KEY --accept-dns=false
+        
+    - name: Get RDP Connection Details
+      run: |
+        echo "========================================"
+        echo "RDP Setup Complete!"
+        echo "========================================"
+        echo "Tailscale IP:"
+        & 'C:\Program Files\Tailscale\tailscale.exe' ip -4
+        echo ""
+        echo "RDP Connection Credentials:"
+        echo "Username 1: RdpUser"
+        echo "Password 1: Rdp@2025!Secure"
+        echo ""
+        echo "Username 2: runneradmin"
+        echo "Password 2: Admin@2025!Secure"
+        echo "========================================"
+        
+    - name: Maintain RDP Connection
+      run: |
+        while ($true) { 
+          Start-Sleep -Seconds 300
+        }
